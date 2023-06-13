@@ -4,10 +4,12 @@
 #include <semaphore>
 
 constexpr int THREAD_COUNT = 5;
+constexpr int LOOP_COUNT = 2;
 class Printer
 {
 private:
     std::counting_semaphore<THREAD_COUNT> turnstile{0};
+    std::counting_semaphore<THREAD_COUNT> turnstile2{1};
     std::mutex streamMtx;
     std::mutex counterMtx;
     int counter = 0;
@@ -31,6 +33,7 @@ private:
             counter += 1;
             if (counter == THREAD_COUNT)
             {
+                turnstile2.acquire();
                 turnstile.release();
             }
         }
@@ -42,18 +45,24 @@ private:
         {
             std::lock_guard{counterMtx};
             counter -= 1;
+            if (counter == 0)
+            {
+                turnstile.acquire();
+                turnstile2.release();
+            }
         }
 
-        if (counter == 0)
-        {
-            turnstile.acquire();
-        }
+        turnstile2.acquire();
+        turnstile2.release();
     }
 
 public:
     void operator()(int num)
     {
-        print(num);
+        for (int i = 0; i < LOOP_COUNT; i++)
+        {
+            print(num);
+        }
     }
 
     void printSemaphoreState()
