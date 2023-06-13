@@ -6,8 +6,12 @@
 constexpr int THREAD_COUNT = 5;
 std::mutex streamMtx;
 
-std::counting_semaphore followerSem{0};
-std::counting_semaphore leaderSem{0};
+std::counting_semaphore followerQueue{0};
+std::counting_semaphore leaderQueue{0};
+std::binary_semaphore mtx{1};
+std::binary_semaphore rendezvous{0};
+int leaders = 0;
+int followers = 0;
 
 void print(std::string str)
 {
@@ -15,18 +19,46 @@ void print(std::string str)
     std::cout << str << "\n";
 }
 
+void dance()
+{
+}
+
 void printLeader(int num)
 {
-    followerSem.release();
-    leaderSem.acquire();
+    mtx.acquire();
+    if (followers > 0)
+    {
+        followers--;
+        followerQueue.release();
+    }
+    else
+    {
+        leaders++;
+        mtx.release();
+        leaderQueue.acquire();
+    }
+
+    rendezvous.acquire();
     print("Leader " + std::to_string(num));
+    mtx.release();
 }
 
 void printFollower(int num)
 {
-    leaderSem.release();
-    followerSem.acquire();
+    mtx.acquire();
+    if (leaders > 0)
+    {
+        leaders--;
+        leaderQueue.release();
+    }
+    else
+    {
+        followers++;
+        mtx.release();
+        followerQueue.acquire();
+    }
     print("Follower " + std::to_string(num));
+    rendezvous.release();
 }
 
 int main()
